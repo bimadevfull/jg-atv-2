@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jornada das Emoções - Spinoza</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #2d5a27, #4a7c59);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(135deg, #3d6b3d, #5a8a5a);
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        #currentEmotion {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #energyBar {
+            width: 200px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #energyFill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+
+        #completedAreas {
+            display: flex;
+            gap: 10px;
+        }
+
+        .area-indicator {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .area-indicator.completed {
+            background: #4CAF50;
+            transform: scale(1.1);
+        }
+
+        #modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            text-align: center;
+            display: none;
+            backdrop-filter: blur(15px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #modal h2 {
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+
+        #modal p {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        #modal button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s ease;
+        }
+
+        #modal button:hover {
+            background: #45a049;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            border-radius: 50%;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <div id="currentEmotion">Explore o mundo das emoções</div>
+            <div>
+                <div style="margin-bottom: 5px; font-size: 12px;">Energia Mental</div>
+                <div id="energyBar">
+                    <div id="energyFill"></div>
+                </div>
+            </div>
+            <div id="completedAreas">
+                <div class="area-indicator" data-emotion="joy">😊</div>
+                <div class="area-indicator" data-emotion="sadness">😢</div>
+                <div class="area-indicator" data-emotion="anxiety">😰</div>
+                <div class="area-indicator" data-emotion="anger">😠</div>
+                <div class="area-indicator" data-emotion="calm">😌</div>
+            </div>
+        </div>
+
+        <div id="modal">
+            <h2 id="modalTitle"></h2>
+            <p id="modalQuote"></p>
+            <p id="modalActivity"></p>
+            <button onclick="completeActivity()">Refletir e Continuar</button>
+        </div>
+
+        <div id="instructions">
+            Use WASD ou setas para mover • Espaço para interagir
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Game state
+        const game = {
+            player: {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                size: 25,
+                speed: 3,
+                eyeBlink: 0,
+                walkCycle: 0,
+                armSwing: 0
+            },
+            keys: {},
+            currentArea: null,
+            completedAreas: new Set(),
+            particles: [],
+            portalVisible: false
+        };
+
+        // Emotional areas
+        const emotionalAreas = {
+            joy: {
+                x: canvas.width * 0.2,
+                y: canvas.height * 0.2,
+                radius: 80,
+                color: '#FFD700',
+                name: 'Alegria',
+                quote: '"A alegria é a passagem do homem de uma perfeição menor para uma maior." - Spinoza',
+                activity: 'Pense em três coisas que te trouxeram alegria hoje. Como elas conectam você com sua essência?'
+            },
+            sadness: {
+                x: canvas.width * 0.8,
+                y: canvas.height * 0.2,
+                radius: 80,
+                color: '#4169E1',
+                name: 'Tristeza',
+                quote: '"A tristeza é a passagem do homem de uma perfeição maior para uma menor." - Spinoza',
+                activity: 'Reflita: como a tristeza pode nos ensinar sobre nossos valores mais profundos?'
+            },
+            anxiety: {
+                x: canvas.width * 0.2,
+                y: canvas.height * 0.8,
+                radius: 80,
+                color: '#808080',
+                name: 'Ansiedade',
+                quote: '"O medo surge da impotência do espírito." - Spinoza',
+                activity: 'Respire fundo. Que pensamentos criam sua ansiedade? Como pode transformá-los em ação?'
+            },
+            anger: {
+                x: canvas.width * 0.8,
+                y: canvas.height * 0.8,
+                radius: 80,
+                color: '#DC143C',
+                name: 'Raiva',
+                quote: '"A ira é o desejo pelo qual somos impelidos a fazer mal àquele que odiamos." - Spinoza',
+                activity: 'Observe sua raiva sem julgamento. O que ela revela sobre seus limites e necessidades?'
+            },
+            calm: {
+                x: canvas.width * 0.5,
+                y: canvas.height * 0.6,
+                radius: 80,
+                color: '#32CD32',
+                name: 'Calma',
+                quote: '"A paz não é a ausência de conflito, mas a capacidade de lidar com ele." - Spinoza',
+                activity: 'Encontre seu centro. Como a calma pode ser sua força em momentos desafiadores?'
+            }
+        };
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            game.keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                handleSpacePress();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            game.keys[e.key.toLowerCase()] = false;
+        });
+
+        // Handle space press for interaction
+        function handleSpacePress() {
+            if (game.currentArea && !game.completedAreas.has(game.currentArea)) {
+                showModal(game.currentArea);
+            } else if (game.portalVisible && isPlayerInPortal()) {
+                showFinalMessage();
+            }
+        }
+
+        // Show modal for emotional area
+        function showModal(areaKey) {
+            const area = emotionalAreas[areaKey];
+            document.getElementById('modalTitle').textContent = area.name;
+            document.getElementById('modalQuote').textContent = area.quote;
+            document.getElementById('modalActivity').textContent = area.activity;
+            document.getElementById('modal').style.display = 'block';
+        }
+
+        // Complete activity
+        function completeActivity() {
+            if (game.currentArea) {
+                game.completedAreas.add(game.currentArea);
+                updateHUD();
+                createCompletionParticles();
+                
+                // Check if all areas completed
+                if (game.completedAreas.size === 5) {
+                    game.portalVisible = true;
+                }
+            }
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Show final message
+        function showFinalMessage() {
+            document.getElementById('modalTitle').textContent = 'Jornada Completa';
+            document.getElementById('modalQuote').textContent = '"Equilibrar emoções e compreender a natureza faz parte da jornada da vida."';
+            document.getElementById('modalActivity').textContent = 'Parabéns! Você completou sua jornada de autoconhecimento emocional.';
+            document.getElementById('modal').style.display = 'block';
+        }
+
+        // Update HUD
+        function updateHUD() {
+            const energyPercent = (game.completedAreas.size / 5) * 100;
+            document.getElementById('energyFill').style.width = energyPercent + '%';
+            
+            // Update area indicators
+            game.completedAreas.forEach(area => {
+                const indicator = document.querySelector(`[data-emotion="${area}"]`);
+                if (indicator) {
+                    indicator.classList.add('completed');
+                }
+            });
+        }
+
+        // Create completion particles
+        function createCompletionParticles() {
+            for (let i = 0; i < 20; i++) {
+                game.particles.push({
+                    x: game.player.x + (Math.random() - 0.5) * 100,
+                    y: game.player.y + (Math.random() - 0.5) * 100,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 60,
+                    maxLife: 60,
+                    color: emotionalAreas[game.currentArea].color
+                });
+            }
+        }
+
+        // Check if player is in portal
+        function isPlayerInPortal() {
+            const portalX = canvas.width / 2;
+            const portalY = canvas.height / 2;
+            const distance = Math.sqrt(
+                Math.pow(game.player.x - portalX, 2) + 
+                Math.pow(game.player.y - portalY, 2)
+            );
+            return distance < 40;
+        }
+
+        // Update game logic
+        function update() {
+            // Player movement
+            if (game.keys['w'] || game.keys['arrowup']) {
+                game.player.y -= game.player.speed;
+                game.player.walkCycle += 0.2;
+            }
+            if (game.keys['s'] || game.keys['arrowdown']) {
+                game.player.y += game.player.speed;
+                game.player.walkCycle += 0.2;
+            }
+            if (game.keys['a'] || game.keys['arrowleft']) {
+                game.player.x -= game.player.speed;
+                game.player.walkCycle += 0.2;
+                game.player.armSwing += 0.15;
+            }
+            if (game.keys['d'] || game.keys['arrowright']) {
+                game.player.x += game.player.speed;
+                game.player.walkCycle += 0.2;
+                game.player.armSwing += 0.15;
+            }
+
+            // Keep player in bounds
+            game.player.x = Math.max(game.player.size, Math.min(canvas.width - game.player.size, game.player.x));
+            game.player.y = Math.max(game.player.size, Math.min(canvas.height - game.player.size, game.player.y));
+
+            // Eye blinking
+            game.player.eyeBlink += 0.1;
+
+            // Check current area
+            game.currentArea = null;
+            let currentEmotionText = 'Explore o mundo das emoções';
+            
+            for (const [key, area] of Object.entries(emotionalAreas)) {
+                const distance = Math.sqrt(
+                    Math.pow(game.player.x - area.x, 2) + 
+                    Math.pow(game.player.y - area.y, 2)
+                );
+                
+                if (distance < area.radius) {
+                    game.currentArea = key;
+                    currentEmotionText = `${area.name} - Pressione ESPAÇO para refletir`;
+                    break;
+                }
+            }
+
+            document.getElementById('currentEmotion').textContent = currentEmotionText;
+
+            // Update particles
+            game.particles = game.particles.filter(particle => {
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.life--;
+                return particle.life > 0;
+            });
+        }
+
+        // Render game
+        function render() {
+            // Clear canvas
+            ctx.fillStyle = '#2d5a27';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw background elements (trees, grass)
+            drawBackground();
+
+            // Draw emotional areas
+            for (const [key, area] of Object.entries(emotionalAreas)) {
+                drawEmotionalArea(area, key);
+            }
+
+            // Draw portal if visible
+            if (game.portalVisible) {
+                drawPortal();
+            }
+
+            // Draw particles
+            game.particles.forEach(particle => {
+                const alpha = particle.life / particle.maxLife;
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = particle.color;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw player
+            drawPlayer();
+        }
+
+        // Draw background
+        function drawBackground() {
+            // Draw trees
+            for (let i = 0; i < 15; i++) {
+                const x = (i * 123) % canvas.width;
+                const y = (i * 456) % canvas.height;
+                drawTree(x, y);
+            }
+
+            // Draw grass patches
+            ctx.fillStyle = '#4a7c59';
+            for (let i = 0; i < 30; i++) {
+                const x = (i * 234) % canvas.width;
+                const y = (i * 567) % canvas.height;
+                ctx.beginPath();
+                ctx.arc(x, y, 15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Draw tree
+        function drawTree(x, y) {
+            // Trunk
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x - 5, y, 10, 30);
+            
+            // Leaves
+            ctx.fillStyle = '#228B22';
+            ctx.beginPath();
+            ctx.arc(x, y - 10, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw emotional area
+        function drawEmotionalArea(area, key) {
+            const time = Date.now() * 0.001;
+            
+            ctx.save();
+            
+            // Apply area-specific effects
+            switch(key) {
+                case 'joy':
+                    ctx.globalAlpha = 0.7 + Math.sin(time * 3) * 0.3;
+                    break;
+                case 'sadness':
+                    ctx.globalAlpha = 0.6 + Math.sin(time * 2) * 0.2;
+                    break;
+                case 'anxiety':
+                    ctx.translate(Math.sin(time * 10) * 2, Math.cos(time * 10) * 2);
+                    break;
+                case 'anger':
+                    ctx.globalAlpha = 0.8 + Math.sin(time * 8) * 0.2;
+                    break;
+                case 'calm':
+                    const scale = 1 + Math.sin(time * 1.5) * 0.05;
+                    ctx.scale(scale, scale);
+                    break;
+            }
+
+            // Draw area circle
+            ctx.fillStyle = area.color;
+            ctx.beginPath();
+            ctx.arc(area.x, area.y, area.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw completion indicator
+            if (game.completedAreas.has(key)) {
+                ctx.fillStyle = 'white';
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('✓', area.x, area.y + 10);
+            }
+
+            ctx.restore();
+        }
+
+        // Draw portal
+        function drawPortal() {
+            const time = Date.now() * 0.001;
+            const x = canvas.width / 2;
+            const y = canvas.height / 2;
+            
+            ctx.save();
+            ctx.globalAlpha = 0.8 + Math.sin(time * 4) * 0.2;
+            
+            // Outer ring
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(x, y, 40, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Inner glow
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, 30, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        // Draw player
+        function drawPlayer() {
+            const x = game.player.x;
+            const y = game.player.y;
+            const size = game.player.size;
+            
+            ctx.save();
+            
+            // Body
+            ctx.fillStyle = '#FFB6C1';
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Arms
+            const armOffset = Math.sin(game.player.armSwing) * 5;
+            ctx.strokeStyle = '#FFB6C1';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(x - size + 5, y + armOffset);
+            ctx.lineTo(x - size - 10, y + 10 + armOffset);
+            ctx.moveTo(x + size - 5, y - armOffset);
+            ctx.lineTo(x + size + 10, y + 10 - armOffset);
+            ctx.stroke();
+            
+            // Legs
+            const legOffset = Math.sin(game.player.walkCycle) * 8;
+            ctx.beginPath();
+            ctx.moveTo(x - 8, y + size - 5);
+            ctx.lineTo(x - 8 + legOffset, y + size + 15);
+            ctx.moveTo(x + 8, y + size - 5);
+            ctx.lineTo(x + 8 - legOffset, y + size + 15);
+            ctx.stroke();
+            
+            // Eyes
+            const eyeSize = Math.sin(game.player.eyeBlink) > 0.9 ? 2 : 6;
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(x - 8, y - 5, eyeSize, 0, Math.PI * 2);
+            ctx.arc(x + 8, y - 5, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mouth
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y + 5, 8, 0, Math.PI);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Reposition areas based on new canvas size
+            emotionalAreas.joy.x = canvas.width * 0.2;
+            emotionalAreas.joy.y = canvas.height * 0.2;
+            emotionalAreas.sadness.x = canvas.width * 0.8;
+            emotionalAreas.sadness.y = canvas.height * 0.2;
+            emotionalAreas.anxiety.x = canvas.width * 0.2;
+            emotionalAreas.anxiety.y = canvas.height * 0.8;
+            emotionalAreas.anger.x = canvas.width * 0.8;
+            emotionalAreas.anger.y = canvas.height * 0.8;
+            emotionalAreas.calm.x = canvas.width * 0.5;
+            emotionalAreas.calm.y = canvas.height * 0.6;
+        });
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>
