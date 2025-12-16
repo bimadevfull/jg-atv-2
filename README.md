@@ -46,7 +46,7 @@ Explore cinco áreas emocionais diferentes, cada uma representando um estado emo
 ### Online (GitHub Pages)
 
 Simplesmente acesse o jogo através do link: 
-👉 **[Clique aqui para jogar](#)** *(adicione o link após deploy)*
+👉 **[Clique aqui para jogar](#)** 
 
 ### Local
 
